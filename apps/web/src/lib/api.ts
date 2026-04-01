@@ -2,6 +2,7 @@ export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 import { auth, getLoginHref } from "./auth";
+import { getSupabaseBrowserClient } from "./supabase/browser";
 
 async function safeText(res: Response) {
   try {
@@ -11,15 +12,15 @@ async function safeText(res: Response) {
   }
 }
 
-function shouldAttemptRefresh(path: string) {
-  if (!path.startsWith("/")) return false;
-  if (path.startsWith("/public/")) return false;
-  if (path.startsWith("/health")) return false;
-  if (path.startsWith("/auth/login")) return false;
-  if (path.startsWith("/auth/register")) return false;
-  if (path.startsWith("/auth/refresh")) return false;
-  if (path.startsWith("/auth/logout")) return false;
-  return true;
+async function getBearerToken() {
+  const inMemory = auth.getState().accessToken;
+  if (inMemory) return inMemory;
+  if (typeof window === "undefined") return null;
+  const supabase = getSupabaseBrowserClient();
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token ?? null;
+  auth.setAccessToken(token);
+  return token;
 }
 
 export async function apiFetch<T>({
@@ -45,30 +46,17 @@ export async function apiFetch<T>({
     });
   };
 
-  const initialToken = auth.getState().accessToken;
+  const initialToken = await getBearerToken();
   let res = await attempt(initialToken);
 
-  if (res.status === 401 && shouldAttemptRefresh(path)) {
-    const refreshRes = await fetch(`${API_BASE_URL}/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include"
-    });
-
-    if (refreshRes.ok) {
-      const data = (await refreshRes.json()) as { accessToken?: string };
-      const nextToken = data.accessToken ?? null;
-      auth.setAccessToken(nextToken);
-      if (nextToken) res = await attempt(nextToken);
-    } else {
-      auth.clear();
-      if (typeof window !== "undefined") {
-        const locale = window.location.pathname.split("/")[1] || "en";
-        window.location.href = getLoginHref({
-          locale,
-          nextPath: window.location.pathname + window.location.search
-        });
-      }
+  if (res.status === 401) {
+    auth.clear();
+    if (typeof window !== "undefined") {
+      const locale = window.location.pathname.split("/")[1] || "en";
+      window.location.href = getLoginHref({
+        locale,
+        nextPath: window.location.pathname + window.location.search
+      });
     }
   }
 

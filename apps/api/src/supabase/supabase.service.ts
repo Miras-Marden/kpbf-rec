@@ -53,5 +53,14 @@ export class SupabaseService {
       signedUrl: res.data.signedUrl
     };
   }
+
+  getPublicMediaUrl(path: string, bucket?: string) {
+    const resolvedBucket =
+      bucket?.trim() ||
+      this.config.get<string>("SUPABASE_STORAGE_BUCKET_MEDIA", { infer: true }) ||
+      "media";
+    const { data } = this.admin().storage.from(resolvedBucket).getPublicUrl(path);
+    return data.publicUrl;
+  }
 }
 

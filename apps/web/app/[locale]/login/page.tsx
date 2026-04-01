@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { apiFetch } from "@/lib/api";
 import { auth } from "@/lib/auth";
 import { normalizeLocale } from "@/lib/i18n";
 import { ErrorBanner } from "@/ui/ErrorBanner";
+import { signInWithSupabase } from "@/lib/supabase/auth";
 
 export default function LoginPage({ params }: { params: { locale: string } }) {
   const locale = normalizeLocale(params.locale);
@@ -29,14 +29,7 @@ export default function LoginPage({ params }: { params: { locale: string } }) {
     setBusy(true);
     setError(null);
     try {
-      const data = await apiFetch<{ accessToken: string }>({
-        path: "/auth/login",
-        method: "POST",
-        body: { email, password }
-      });
-      auth.setAccessToken(data.accessToken);
-      const me = await apiFetch<{ sub: string; email: string; roles: string[] }>({ path: "/auth/me" });
-      auth.setUser(me);
+      await signInWithSupabase({ email, password });
       router.replace(next);
     } catch (e) {
       auth.clear();

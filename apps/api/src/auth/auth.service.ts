@@ -10,6 +10,7 @@ import type { LoginDto } from "./dto/login.dto";
 import { Role } from "@prisma/client";
 import type { JwtPayload } from "./jwt-payload";
 import type { SupabaseJwtClaims } from "./supabase-jwt.verifier";
+import type { AuthenticatedIdentity } from "./authenticated-identity";
 
 function sha256(input: string) {
   return crypto.createHash("sha256").update(input).digest("hex");
@@ -17,6 +18,10 @@ function sha256(input: string) {
 
 function randomToken(bytes = 32) {
   return crypto.randomBytes(bytes).toString("base64url");
+}
+
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase();
 }
 
 @Injectable()
@@ -254,6 +259,86 @@ export class AuthService {
     }
 
     return { ok: true, supabaseUserId };
+  }
+
+  private async loadIdentityForUser(userId: string, supabaseUserId?: string | null): Promise<AuthenticatedIdentity> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { roles: true }
+    });
+    if (!user) throw new UnauthorizedException("User not found");
+    return {
+      sub: user.id,
+      email: normalizeEmail(user.email),
+      roles: user.roles.map((r) => r.role),
+      authSource: "supabase",
+      supabaseUserId: supabaseUserId ?? user.supabaseUserId ?? null
+    };
+  }
+
+  async syncSupabaseIdentity(params: { claims: SupabaseJwtClaims }) {
+    const supabaseUserId = params.claims.sub?.trim();
+    const email = normalizeEmail(params.claims.email ?? "");
+    if (!supabaseUserId || !email) {
+      throw new BadRequestException("Invalid Supabase claims");
+    }
+
+    const bySupabase = await this.prisma.user.findUnique({
+      where: { supabaseUserId },
+      select: { id: true }
+    });
+    if (bySupabase) {
+      const identity = await this.loadIdentityForUser(bySupabase.id, supabaseUserId);
+      return { ok: true, action: "existing", identity };
+    }
+
+    const byEmail = await this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true, supabaseUserId: true }
+    });
+    if (byEmail) {
+      if (byEmail.supabaseUserId && byEmail.supabaseUserId !== supabaseUserId) {
+        throw new BadRequestException("Email is linked to a different Supabase account");
+      }
+      if (!byEmail.supabaseUserId) {
+        await this.prisma.user.update({
+          where: { id: byEmail.id },
+          data: { supabaseUserId }
+        });
+        await this.audit.log({
+          userId: byEmail.id,
+          action: "auth.supabase_sync_link",
+          entityType: "User",
+          entityId: byEmail.id,
+          note: `supabaseUserId=${supabaseUserId}`
+        });
+      }
+      const identity = await this.loadIdentityForUser(byEmail.id, supabaseUserId);
+      return { ok: true, action: "linked", identity };
+    }
+
+    const passwordHash = await bcrypt.hash(randomToken(32), 10);
+    const created = await this.prisma.user.create({
+      data: {
+        email,
+        passwordHash,
+        displayName: null,
+        supabaseUserId,
+        roles: { create: [{ role: Role.USER }] }
+      },
+      select: { id: true }
+    });
+
+    await this.audit.log({
+      userId: created.id,
+      action: "auth.supabase_sync_provision",
+      entityType: "User",
+      entityId: created.id,
+      note: `supabaseUserId=${supabaseUserId}`
+    });
+
+    const identity = await this.loadIdentityForUser(created.id, supabaseUserId);
+    return { ok: true, action: "provisioned", identity };
   }
 }
 

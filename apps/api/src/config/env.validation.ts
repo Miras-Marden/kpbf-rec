@@ -14,6 +14,7 @@ export const envValidationSchema = Joi.object({
   AUTH_COOKIE_DOMAIN: Joi.string().min(1).optional(),
   AUTH_COOKIE_SAMESITE: Joi.string().valid("lax", "strict", "none").default("lax"),
   AUTH_ENABLE_SUPABASE_AUTOLINK: Joi.boolean().default(false),
+  AUTH_ALLOW_SUPABASE_EMAIL_MATCH_LOGIN: Joi.boolean().default(false),
 
   // Comma-separated origins (e.g. "https://kpbf.kz,https://admin.kpbf.kz").
   // In development you can set "*" to allow all.

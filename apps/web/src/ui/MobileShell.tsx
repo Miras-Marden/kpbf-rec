@@ -9,6 +9,7 @@ import { AnimatePresence } from "framer-motion";
 import { apiFetch } from "@/lib/api";
 import { auth } from "@/lib/auth";
 import { useAuth } from "@/lib/useAuth";
+import { signOutSupabase } from "@/lib/supabase/auth";
 import { PageTransition } from "./motion/PageTransition";
 import { Modal } from "./motion/Modal";
 
@@ -78,6 +79,7 @@ function TopBar({
               try {
                 await apiFetch({ path: "/auth/logout", method: "POST" });
               } finally {
+                await signOutSupabase();
                 auth.clear();
                 router.push(`/${locale}/login`);
               }

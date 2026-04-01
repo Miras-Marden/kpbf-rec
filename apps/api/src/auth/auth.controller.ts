@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, Res, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Headers, Post, Req, Res, UnauthorizedException, UseGuards } from "@nestjs/common";
 import { AuthService } from "./auth.service";
 import { RegisterDto } from "./dto/register.dto";
 import { LoginDto } from "./dto/login.dto";
@@ -118,6 +118,18 @@ export class AuthController {
       userId: user.sub,
       claims
     });
+  }
+
+  @Post("supabase/sync")
+  async syncSupabase(@Headers("authorization") authorizationHeader: string | undefined) {
+    if (!this.supabaseJwt.isEnabled()) {
+      throw new UnauthorizedException("Supabase JWT verification is not configured");
+    }
+    const claims = await this.supabaseJwt.verifyAuthorizationHeader(authorizationHeader);
+    if (!claims?.sub || !claims.email) {
+      throw new UnauthorizedException("Invalid Supabase token");
+    }
+    return this.auth.syncSupabaseIdentity({ claims });
   }
 }
 

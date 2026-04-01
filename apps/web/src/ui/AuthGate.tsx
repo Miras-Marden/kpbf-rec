@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { apiFetch } from "@/lib/api";
 import { auth } from "@/lib/auth";
 import { normalizeLocale } from "@/lib/i18n";
+import { bootstrapCanonicalIdentity } from "@/lib/supabase/auth";
 import { LoadingState } from "./LoadingState";
 import { ErrorBanner } from "./ErrorBanner";
 
@@ -27,10 +27,7 @@ export function RequireAuth({
       setError(null);
 
       try {
-        const me = await apiFetch<{ sub: string; email: string; roles: string[] }>({
-          path: "/auth/me"
-        });
-        auth.setUser(me);
+        await bootstrapCanonicalIdentity();
       } catch (e) {
         auth.clear();
         if (!cancelled) {

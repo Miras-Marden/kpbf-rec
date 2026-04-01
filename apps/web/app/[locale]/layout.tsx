@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { supportedLocales } from "@/lib/i18n";
 import { MobileShell } from "@/ui/MobileShell";
+import { AuthBootstrap } from "@/ui/AuthBootstrap";
 
 export default function LocaleLayout({
   children,
@@ -16,6 +17,7 @@ export default function LocaleLayout({
   return (
     <html lang={locale}>
       <body>
+        <AuthBootstrap />
         <MobileShell locale={locale}>{children}</MobileShell>
       </body>
     </html>
