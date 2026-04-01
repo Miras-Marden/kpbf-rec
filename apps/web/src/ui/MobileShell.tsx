@@ -6,12 +6,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { usePathname } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
-import { apiFetch } from "@/lib/api";
 import { auth } from "@/lib/auth";
 import { useAuth } from "@/lib/useAuth";
 import { signOutSupabase } from "@/lib/supabase/auth";
 import { PageTransition } from "./motion/PageTransition";
 import { Modal } from "./motion/Modal";
+import { ApiOfflineBanner } from "./ApiOfflineBanner";
 
 function TopBar({
   locale,
@@ -76,13 +76,9 @@ function TopBar({
             type="button"
             onClick={async () => {
               setLogoutOpen(false);
-              try {
-                await apiFetch({ path: "/auth/logout", method: "POST" });
-              } finally {
-                await signOutSupabase();
-                auth.clear();
-                router.push(`/${locale}/login`);
-              }
+              await signOutSupabase();
+              auth.clear();
+              router.push(`/${locale}/login`);
             }}
             className="rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-[#062034]"
           >
@@ -140,6 +136,7 @@ export function MobileShell({
     <div className="min-h-screen pb-[72px]">
       <TopBar locale={locale} />
       <main className="mx-auto w-full max-w-2xl px-4 pt-4">
+        <ApiOfflineBanner />
         <AnimatePresence mode="wait" initial={false}>
           <PageTransition routeKey={pathname}>{children}</PageTransition>
         </AnimatePresence>

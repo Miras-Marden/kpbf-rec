@@ -1,41 +1,34 @@
 "use client";
 
+import type { User } from "@supabase/supabase-js";
 import { auth } from "@/lib/auth";
-import { apiFetch, API_BASE_URL } from "@/lib/api";
 import { getSupabaseBrowserClient } from "./browser";
-
-async function syncSupabaseIdentity(accessToken: string) {
-  const res = await fetch(`${API_BASE_URL}/auth/supabase/sync`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`
-    },
-    credentials: "include"
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Supabase sync failed: ${res.status} ${text}`);
-  }
-}
 
 type CanonicalMe = { sub: string; email: string; roles: string[] };
 
 let bootstrapPromise: Promise<CanonicalMe | null> | null = null;
 
-function isAuthFailure(err: unknown) {
-  const msg = err instanceof Error ? err.message : String(err);
-  return msg.includes("401") || msg.toLowerCase().includes("unauthorized") || msg.toLowerCase().includes("jwt");
+function rolesFromSupabaseUser(user: User): string[] {
+  const app = user.app_metadata as Record<string, unknown> | null | undefined;
+  const meta = user.user_metadata as Record<string, unknown> | null | undefined;
+  const r = app?.roles ?? meta?.roles;
+  if (Array.isArray(r) && r.every((x): x is string => typeof x === "string")) {
+    return r;
+  }
+  return [];
+}
+
+function authUserFromSupabaseUser(user: User): CanonicalMe {
+  return {
+    sub: user.id,
+    email: user.email ?? "",
+    roles: rolesFromSupabaseUser(user)
+  };
 }
 
 /**
- * Canonical bootstrap flow for the entire web app.
- *
- * - Reads current Supabase session
- * - If session exists: /auth/supabase/sync -> /auth/me and stores canonical identity/roles
- * - If no session: clears auth state
- *
- * Single-flight (deduped) to avoid double sync/me calls during initial load.
+ * Canonical bootstrap: Supabase session only (no Nest API required).
+ * Roles may come from `app_metadata.roles` / `user_metadata.roles` as string[] if you set them in Supabase.
  */
 export async function bootstrapAuthSession(opts?: { force?: boolean }) {
   if (!opts?.force && bootstrapPromise) return bootstrapPromise;
@@ -45,43 +38,24 @@ export async function bootstrapAuthSession(opts?: { force?: boolean }) {
   bootstrapPromise = (async () => {
     const supabase = getSupabaseBrowserClient();
     const { data } = await supabase.auth.getSession();
-    const accessToken = data.session?.access_token ?? null;
+    const session = data.session;
+    const accessToken = session?.access_token ?? null;
 
-    if (!accessToken) {
+    if (!accessToken || !session?.user) {
       auth.clear();
       return null;
     }
 
     auth.setAccessToken(accessToken);
-
-    try {
-      await syncSupabaseIdentity(accessToken);
-      const me = await apiFetch<CanonicalMe>({ path: "/auth/me" });
-      auth.setUser(me);
-      auth.setBootstrapStatus("ready");
-      return me;
-    } catch (e) {
-      // If the backend rejects the token, treat as invalid session and clear.
-      if (isAuthFailure(e)) {
-        try {
-          await supabase.auth.signOut();
-        } catch {
-          // ignore
-        }
-        auth.clear();
-        return null;
-      }
-      // Non-auth failures should still end bootstrapping so the app doesn't hang.
-      auth.setBootstrapStatus("ready");
-      throw e;
-    }
+    const me = authUserFromSupabaseUser(session.user);
+    auth.setUser(me);
+    auth.setBootstrapStatus("ready");
+    return me;
   })();
 
   try {
     return await bootstrapPromise;
   } finally {
-    // Reset so a later non-forced call can run a fresh bootstrap.
-    // (We still keep single-flight behavior while bootstrap is in-progress.)
     bootstrapPromise = null;
     auth.setBootstrapStatus("ready");
   }
@@ -91,7 +65,6 @@ export function getCurrentBearerToken() {
   return auth.getState().accessToken;
 }
 
-// Back-compat alias for callers that expect this name.
 export async function bootstrapCanonicalIdentity() {
   return bootstrapAuthSession({ force: true });
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, isApiConfigured } from "@/lib/api";
 import { normalizeLocale } from "@/lib/i18n";
 import { ErrorBanner } from "@/ui/ErrorBanner";
 import { LoadingState } from "@/ui/LoadingState";
@@ -29,6 +29,14 @@ export default function P4PRankingsPage({ params }: { params: { locale: string }
   useEffect(() => {
     let cancelled = false;
     async function run() {
+      if (!isApiConfigured()) {
+        if (!cancelled) {
+          setLoading(false);
+          setItems([]);
+          setError(null);
+        }
+        return;
+      }
       setLoading(true);
       setError(null);
       try {

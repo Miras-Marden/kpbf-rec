@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, isApiConfigured } from "@/lib/api";
 import { normalizeLocale } from "@/lib/i18n";
 import { ErrorBanner } from "@/ui/ErrorBanner";
 import { LoadingState } from "@/ui/LoadingState";
@@ -28,6 +28,15 @@ export default function RankingsByCategoryPage({ params }: { params: { locale: s
   useEffect(() => {
     let cancelled = false;
     async function loadCategories() {
+      if (!isApiConfigured()) {
+        if (!cancelled) {
+          setCategories([]);
+          setCategorySlug("");
+          setError(null);
+          setLoading(false);
+        }
+        return;
+      }
       try {
         const data = await apiFetch<{ items: Category[] }>({ path: "/public/rankings/categories" });
         if (!cancelled) {
@@ -56,6 +65,14 @@ export default function RankingsByCategoryPage({ params }: { params: { locale: s
     const path = rankingPath;
     let cancelled = false;
     async function loadRankings() {
+      if (!isApiConfigured()) {
+        if (!cancelled) {
+          setLoading(false);
+          setItems([]);
+          setError(null);
+        }
+        return;
+      }
       setLoading(true);
       setError(null);
       try {

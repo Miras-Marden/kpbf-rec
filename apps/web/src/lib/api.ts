@@ -1,8 +1,21 @@
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-
 import { auth, getLoginHref } from "./auth";
 import { getCurrentBearerToken } from "./supabase/auth";
+
+/** Backend API base URL. Empty = optional API not configured (Supabase-only mode). */
+export function getApiBaseUrl(): string {
+  return process.env.NEXT_PUBLIC_API_URL?.trim() ?? "";
+}
+
+export function isApiConfigured(): boolean {
+  return Boolean(getApiBaseUrl());
+}
+
+export class ApiNotConfiguredError extends Error {
+  constructor() {
+    super("NEXT_PUBLIC_API_URL is not set");
+    this.name = "ApiNotConfiguredError";
+  }
+}
 
 async function safeText(res: Response) {
   try {
@@ -13,12 +26,14 @@ async function safeText(res: Response) {
 }
 
 async function getBearerToken() {
-  // Centralized token source: AuthBootstrap -> auth state.
-  // Avoid calling supabase.auth.getSession() inside the API client.
   const inMemory = getCurrentBearerToken() ?? auth.getState().accessToken;
   return inMemory ?? null;
 }
 
+/**
+ * JSON fetch to optional backend API. Requires `NEXT_PUBLIC_API_URL` at runtime.
+ * In Supabase-only deployments, use `isApiConfigured()` and skip calling this.
+ */
 export async function apiFetch<T>({
   path,
   method = "GET",
@@ -28,13 +43,18 @@ export async function apiFetch<T>({
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
 }): Promise<T> {
+  const base = getApiBaseUrl();
+  if (!base) {
+    throw new ApiNotConfiguredError();
+  }
+
   const attempt = async (accessToken: string | null) => {
     const headers: Record<string, string> = {
       "Content-Type": "application/json"
     };
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
 
-    return fetch(`${API_BASE_URL}${path}`, {
+    return fetch(`${base}${path}`, {
       method,
       headers,
       credentials: "include",
@@ -43,7 +63,7 @@ export async function apiFetch<T>({
   };
 
   const initialToken = await getBearerToken();
-  let res = await attempt(initialToken);
+  const res = await attempt(initialToken);
 
   if (res.status === 401) {
     auth.clear();
@@ -63,4 +83,3 @@ export async function apiFetch<T>({
 
   return res.json() as Promise<T>;
 }
-

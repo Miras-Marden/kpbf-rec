@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, isApiConfigured } from "@/lib/api";
 import { ErrorBanner } from "@/ui/ErrorBanner";
 import { LoadingState } from "@/ui/LoadingState";
 import { normalizeLocale } from "@/lib/i18n";
@@ -41,6 +41,14 @@ export default function FightersListPage({
   useEffect(() => {
     let cancelled = false;
     async function run() {
+      if (!isApiConfigured()) {
+        if (!cancelled) {
+          setLoading(false);
+          setItems([]);
+          setError(null);
+        }
+        return;
+      }
       setLoading(true);
       setError(null);
       try {

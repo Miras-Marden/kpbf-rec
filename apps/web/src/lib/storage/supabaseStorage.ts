@@ -1,51 +1,44 @@
-import { apiFetch } from "@/lib/api";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 
-export type SignedUpload = {
+/** Default bucket name; configure RLS in Supabase for this bucket. */
+const DEFAULT_BUCKET = "media";
+
+export type UploadMediaResult = {
   bucket: string;
   path: string;
-  token: string;
-  signedUrl: string;
+  publicUrl: string;
 };
 
-export type SignedMediaUpload = { upload: SignedUpload; publicUrl: string };
-
-export async function createSignedMediaUpload(params: {
+/**
+ * Direct upload to Supabase Storage using the anon key (client + RLS policies).
+ * No Nest API or service role on the client.
+ */
+export async function uploadMediaFile(params: {
   path: string;
-  contentType?: string;
-}): Promise<SignedMediaUpload> {
-  return apiFetch<SignedMediaUpload>({
-    path: "/storage/supabase/signed-upload",
-    method: "POST",
-    body: {
-      path: params.path,
-      contentType: params.contentType || undefined
-    }
-  });
-}
-
-export async function uploadFileToSignedUrl(params: {
-  signed: SignedMediaUpload;
   file: File;
-  contentType?: string;
-}): Promise<{ publicUrl: string; bucket: string; path: string }> {
+  bucket?: string;
+  upsert?: boolean;
+}): Promise<UploadMediaResult> {
   const supabase = getSupabaseBrowserClient();
-  const contentType = params.contentType || params.file.type || undefined;
+  const bucket = params.bucket?.trim() || DEFAULT_BUCKET;
+  const { data, error } = await supabase.storage.from(bucket).upload(params.path, params.file, {
+    upsert: params.upsert ?? false,
+    contentType: params.file.type || undefined
+  });
 
-  const res = await supabase.storage
-    .from(params.signed.upload.bucket)
-    .uploadToSignedUrl(params.signed.upload.path, params.signed.upload.token, params.file, {
-      contentType
-    });
-
-  if (res.error) {
-    throw new Error(`Supabase signed upload failed: ${res.error.message}`);
+  if (error) {
+    throw new Error(`Supabase storage upload failed: ${error.message}`);
   }
 
+  const { data: pub } = supabase.storage.from(bucket).getPublicUrl(data.path);
   return {
-    publicUrl: params.signed.publicUrl,
-    bucket: params.signed.upload.bucket,
-    path: params.signed.upload.path
+    bucket,
+    path: data.path,
+    publicUrl: pub.publicUrl
   };
 }
 
+export function getMediaPublicUrl(path: string, bucket: string = DEFAULT_BUCKET): string {
+  const supabase = getSupabaseBrowserClient();
+  return supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
+}

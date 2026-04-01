@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, isApiConfigured } from "@/lib/api";
 import { ErrorBanner } from "@/ui/ErrorBanner";
 import { LoadingState } from "@/ui/LoadingState";
 
@@ -43,6 +43,14 @@ export default function FighterDetailPage({
   useEffect(() => {
     let cancelled = false;
     async function run() {
+      if (!isApiConfigured()) {
+        if (!cancelled) {
+          setLoading(false);
+          setData(null);
+          setError(null);
+        }
+        return;
+      }
       setLoading(true);
       setError(null);
       try {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, isApiConfigured } from "@/lib/api";
 import { ErrorBanner } from "@/ui/ErrorBanner";
 import { LoadingState } from "@/ui/LoadingState";
 
@@ -44,11 +44,20 @@ export default function AdminBoutsPage() {
   const [method, setMethod] = useState<(typeof METHODS)[number]>("UD");
 
   async function reload() {
+    if (!isApiConfigured()) {
+      setItems([]);
+      return;
+    }
     const data = await apiFetch<{ items: BoutRow[] }>({ path: "/admin/bouts" });
     setItems(data.items);
   }
 
   async function reloadLookups() {
+    if (!isApiConfigured()) {
+      setFighters([]);
+      setEvents([]);
+      return;
+    }
     const [f, e] = await Promise.all([
       apiFetch<{ items: any[] }>({ path: "/admin/fighters" }),
       apiFetch<{ items: any[] }>({ path: "/admin/events" })
@@ -91,6 +100,10 @@ export default function AdminBoutsPage() {
   }, []);
 
   async function create() {
+    if (!isApiConfigured()) {
+      setError("Backend API is not configured (set NEXT_PUBLIC_API_URL).");
+      return;
+    }
     setError(null);
     setNotice(null);
     setBusyKey("create");
@@ -118,6 +131,10 @@ export default function AdminBoutsPage() {
   }
 
   async function action(id: string, verb: "submit" | "publish" | "reject") {
+    if (!isApiConfigured()) {
+      setError("Backend API is not configured (set NEXT_PUBLIC_API_URL).");
+      return;
+    }
     setError(null);
     setNotice(null);
     setBusyKey(`${verb}:${id}`);

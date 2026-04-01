@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, isApiConfigured } from "@/lib/api";
 import { LoadingState } from "@/ui/LoadingState";
 import { ErrorBanner } from "@/ui/ErrorBanner";
 import { AnimatePresence } from "framer-motion";
@@ -35,6 +35,14 @@ export default function SearchPage({
     async function run() {
       if (!q.trim()) {
         setResults([]);
+        return;
+      }
+      if (!isApiConfigured()) {
+        if (!cancelled) {
+          setResults([]);
+          setLoading(false);
+          setError(null);
+        }
         return;
       }
       setLoading(true);

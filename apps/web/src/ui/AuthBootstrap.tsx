@@ -10,7 +10,7 @@ export function AuthBootstrap() {
     const supabase = getSupabaseBrowserClient();
     let mounted = true;
 
-    // Canonical app bootstrap: sync/provision + load /auth/me if session exists.
+    // Canonical app bootstrap: Supabase session + user (no Nest API required).
     bootstrapAuthSession().catch(() => {
       // Errors are handled inside bootstrap; keep this as a final safety net.
       if (!mounted) return;

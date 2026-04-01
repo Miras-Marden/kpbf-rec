@@ -1,3 +1,5 @@
+import { defaultLocale } from "./i18n";
+
 export type AuthUser = {
   sub: string;
   email: string;
@@ -55,7 +57,7 @@ export const auth = {
 };
 
 export function getLoginHref(opts?: { locale?: string; nextPath?: string }) {
-  const locale = opts?.locale && opts.locale.trim() ? opts.locale : "en";
+  const locale = opts?.locale && opts.locale.trim() ? opts.locale : defaultLocale;
   const nextPath = opts?.nextPath?.trim();
   const qs = nextPath ? `?next=${encodeURIComponent(nextPath)}` : "";
   return `/${locale}/login${qs}`;

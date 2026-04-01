@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, isApiConfigured } from "@/lib/api";
 import { ErrorBanner } from "@/ui/ErrorBanner";
 import { LoadingState } from "@/ui/LoadingState";
 
@@ -36,6 +36,14 @@ export default function AdminEventsPage() {
   useEffect(() => {
     let cancelled = false;
     async function run() {
+      if (!isApiConfigured()) {
+        if (!cancelled) {
+          setLoading(false);
+          setItems([]);
+          setError(null);
+        }
+        return;
+      }
       setLoading(true);
       setError(null);
       try {
@@ -54,6 +62,10 @@ export default function AdminEventsPage() {
   }, []);
 
   async function create() {
+    if (!isApiConfigured()) {
+      setError("Backend API is not configured (set NEXT_PUBLIC_API_URL).");
+      return;
+    }
     setError(null);
     setNotice(null);
     setBusyKey("create");
@@ -77,6 +89,10 @@ export default function AdminEventsPage() {
   }
 
   async function action(id: string, verb: "submit" | "publish" | "reject") {
+    if (!isApiConfigured()) {
+      setError("Backend API is not configured (set NEXT_PUBLIC_API_URL).");
+      return;
+    }
     setError(null);
     setNotice(null);
     setBusyKey(`${verb}:${id}`);

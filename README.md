@@ -3,8 +3,8 @@
 KPBF REC is a production-minded Kazakhstani boxing database: fighters, bouts, events, rankings, and news.
 
 ## Monorepo
-- `apps/web`: Next.js (App Router) + Tailwind (mobile-first UI)
-- `apps/api`: NestJS + Prisma + PostgreSQL (JWT auth + RBAC)
+- `apps/web`: Next.js (App Router) + Tailwind — **can run on Vercel with Supabase only** (see env below)
+- `apps/api`: NestJS + Prisma + PostgreSQL — **optional** for local/full-stack; not required to build or run the web app alone
 - `packages/types`: shared enums/types
 
 ## Records strategy
@@ -27,26 +27,39 @@ Do not include build/dependency outputs in shared archives (e.g. `node_modules/`
 
 | Name | Required | Notes |
 |------|----------|--------|
-| `NEXT_PUBLIC_API_URL` | Yes | Public URL of your Nest API (e.g. `https://api.example.com`). |
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL. |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase **anon** key only (never service role). |
+| `NEXT_PUBLIC_API_URL` | No | Optional Nest API URL. If unset, the app runs in **Supabase-only** mode (auth works; listings/rankings/admin need API). |
 
 No database or API-only secrets are required for the Next.js build; do not set `SUPABASE_SERVICE_ROLE_KEY` on the frontend.
 
 ## Environment files
-- Root: copy `.env.example` → `.env` (**do not commit**)
-- API: copy `apps/api/.env.example` → `apps/api/.env` (**do not commit**)
-- Web: copy `apps/web/.env.example` → `apps/web/.env.local` (optional)
 
-## Local MVP setup commands
-From repo root, run these commands in order:
+**Frontend (Vercel or local web only)** — required variables are only:
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+Copy [`apps/web/.env.example`](apps/web/.env.example) → `apps/web/.env.local` (gitignored). Do not put service role keys or `DATABASE_URL` in the web app.
+
+**Optional:** `NEXT_PUBLIC_API_URL` if you run the Nest API for live listings/rankings/admin.
+
+**Root** [`.env.example`](.env.example) summarizes the web block and points to `apps/api` for backend.
+
+**Backend (local API)** — copy [`apps/api/.env.example`](apps/api/.env.example) → `apps/api/.env` when you need Prisma, Redis, or JWT secrets. Not used by the Vercel web build.
+
+## Local setup
+
+**Web only (Supabase):** `pnpm install` → configure `apps/web/.env.local` → `pnpm -C apps/web dev`.
+
+**Full stack (web + API + DB):** from repo root:
+
 1. Install dependencies: `pnpm install`
 2. Start infra: `docker compose up -d`
 3. Prisma client: `pnpm -C apps/api prisma:generate`
 4. Prisma migrate: `pnpm -C apps/api prisma:migrate`
 5. Seed data (+ ranking bootstrap): `pnpm -C apps/api prisma:seed`
 6. Run API: `pnpm -C apps/api dev`
-7. Run Web: `pnpm -C apps/web dev`
+7. Run Web: `pnpm -C apps/web dev` (set `NEXT_PUBLIC_API_URL` if you want API-backed data)
 
 ## Database (local)
 This repo includes `docker-compose.yml` for Postgres (and Redis, optional).
