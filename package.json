@@ -3,11 +3,13 @@
   "private": true,
   "packageManager": "pnpm@9.15.1",
   "engines": {
-    "node": ">=20"
+    "node": "20.x",
+    "pnpm": ">=9.15.1 <10"
   },
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
+    "build:web": "turbo run build --filter=@kpbf-rec/web",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
     "format": "prettier -w ."

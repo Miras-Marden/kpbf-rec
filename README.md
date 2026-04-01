@@ -14,9 +14,24 @@ Fighter records are **computed from bouts** (typically from **published** bouts 
 Do not include build/dependency outputs in shared archives (e.g. `node_modules/`, `dist/`, `.next/`, `.turbo/`). Use `.gitignore` as the source of truth for what must be excluded.
 
 ## Prerequisites
-- Node.js >= 20
-- pnpm (via Corepack)
+- Node.js **20.x** (see `.nvmrc`; matches Vercel LTS)
+- **pnpm 9.15.1** (Corepack: `corepack enable` then `corepack prepare pnpm@9.15.1 --activate` — must match root `package.json` / lockfile)
 - Docker (optional; recommended for local Postgres)
+
+## Deploy web on Vercel (monorepo)
+1. Import the Git repository and set **Root Directory** to `apps/web` (so `apps/web/vercel.json` applies).
+2. Use **Node.js 20** in Project Settings (or rely on `.nvmrc` / `engines`).
+3. Ensure **Install Command** runs from the repo root (this repo sets it in `apps/web/vercel.json`): `cd ../.. && pnpm install --frozen-lockfile`.
+4. **Build Command** (also in `vercel.json`): `cd ../.. && pnpm exec turbo run build --filter=@kpbf-rec/web` — builds `@kpbf-rec/types` then `@kpbf-rec/web` only (API is not built on Vercel).
+5. Add **Environment Variables** in the Vercel project (Production / Preview as needed):
+
+| Name | Required | Notes |
+|------|----------|--------|
+| `NEXT_PUBLIC_API_URL` | Yes | Public URL of your Nest API (e.g. `https://api.example.com`). |
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL. |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase **anon** key only (never service role). |
+
+No database or API-only secrets are required for the Next.js build; do not set `SUPABASE_SERVICE_ROLE_KEY` on the frontend.
 
 ## Environment files
 - Root: copy `.env.example` → `.env` (**do not commit**)
