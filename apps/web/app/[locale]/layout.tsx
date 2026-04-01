@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
-import { supportedLocales } from "@/lib/i18n";
+import { defaultLocale, supportedLocales } from "@/lib/i18n";
 import { MobileShell } from "@/ui/MobileShell";
 import { AuthBootstrap } from "@/ui/AuthBootstrap";
+import { LocaleHtmlLang } from "@/ui/LocaleHtmlLang";
 
 export default function LocaleLayout({
   children,
@@ -10,17 +11,17 @@ export default function LocaleLayout({
   children: ReactNode;
   params: { locale: string };
 }) {
-  const locale = supportedLocales.includes(params.locale as any)
+  const locale = supportedLocales.includes(params.locale as (typeof supportedLocales)[number])
     ? params.locale
-    : "en";
+    : defaultLocale;
 
+  // Nested `<html>` / `<body>` here breaks App Router (only root `app/layout.tsx` may define them).
   return (
-    <html lang={locale}>
-      <body>
-        <AuthBootstrap />
-        <MobileShell locale={locale}>{children}</MobileShell>
-      </body>
-    </html>
+    <>
+      <LocaleHtmlLang />
+      <AuthBootstrap />
+      <MobileShell locale={locale}>{children}</MobileShell>
+    </>
   );
 }
 

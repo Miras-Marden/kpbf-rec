@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { defaultLocale } from "@/lib/i18n";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -8,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang={defaultLocale} suppressHydrationWarning>
       <body>{children}</body>
     </html>
   );
