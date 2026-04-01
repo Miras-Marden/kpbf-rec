@@ -9,14 +9,25 @@ import { AdminModule } from "./modules/admin/admin.module";
 import { PublicModule } from "./modules/public/public.module";
 import { AuditModule } from "./audit/audit.module";
 import { RankingsModule } from "./modules/rankings/rankings.module";
+import { envValidationSchema } from "./config/env.validation";
+import { ThrottlerModule } from "@nestjs/throttler";
+import { SupabaseModule } from "./supabase/supabase.module";
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: [".env"],
+      validationSchema: envValidationSchema
     }),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60_000,
+        limit: 120
+      }
+    ]),
     PrismaModule,
+    SupabaseModule,
     AuditModule,
     AuthModule,
     RbacModule,

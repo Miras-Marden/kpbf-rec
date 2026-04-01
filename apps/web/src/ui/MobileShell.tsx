@@ -2,10 +2,15 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { AnimatePresence } from "framer-motion";
 import { apiFetch } from "@/lib/api";
 import { auth } from "@/lib/auth";
 import { useAuth } from "@/lib/useAuth";
+import { PageTransition } from "./motion/PageTransition";
+import { Modal } from "./motion/Modal";
 
 function TopBar({
   locale,
@@ -15,8 +20,9 @@ function TopBar({
   title?: string;
 }) {
   const router = useRouter();
+  const [logoutOpen, setLogoutOpen] = useState(false);
   const a = useAuth();
-  const isAuthed = !!a.accessToken;
+  const isAuthed = !!a.user || !!a.accessToken;
   return (
     <header className="sticky top-0 z-30 border-b border-white/10 bg-[#0b1220]/80 backdrop-blur">
       <div className="flex items-center justify-between gap-3 px-4 py-3">
@@ -37,14 +43,7 @@ function TopBar({
           {isAuthed ? (
             <button
               type="button"
-              onClick={async () => {
-                try {
-                  await apiFetch({ path: "/auth/logout", method: "POST" });
-                } finally {
-                  auth.clear();
-                  router.push(`/${locale}/login`);
-                }
-              }}
+              onClick={() => setLogoutOpen(true)}
               className="rounded-lg bg-white/5 px-3 py-2 text-xs text-white/90 ring-1 ring-white/10"
             >
               Logout
@@ -59,6 +58,36 @@ function TopBar({
           )}
         </div>
       </div>
+
+      <Modal open={logoutOpen} title="Sign out?" onClose={() => setLogoutOpen(false)}>
+        <div className="text-sm text-white/70">
+          You will need to sign in again to access admin features.
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setLogoutOpen(false)}
+            className="rounded-xl bg-white/5 px-4 py-2 text-sm font-semibold text-white/90 ring-1 ring-white/10"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={async () => {
+              setLogoutOpen(false);
+              try {
+                await apiFetch({ path: "/auth/logout", method: "POST" });
+              } finally {
+                auth.clear();
+                router.push(`/${locale}/login`);
+              }
+            }}
+            className="rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-[#062034]"
+          >
+            Sign out
+          </button>
+        </div>
+      </Modal>
     </header>
   );
 }
@@ -104,10 +133,15 @@ export function MobileShell({
   locale: string;
   children: ReactNode;
 }) {
+  const pathname = usePathname() ?? "";
   return (
     <div className="min-h-screen pb-[72px]">
       <TopBar locale={locale} />
-      <main className="mx-auto w-full max-w-2xl px-4 pt-4">{children}</main>
+      <main className="mx-auto w-full max-w-2xl px-4 pt-4">
+        <AnimatePresence mode="wait" initial={false}>
+          <PageTransition routeKey={pathname}>{children}</PageTransition>
+        </AnimatePresence>
+      </main>
       <BottomNav locale={locale} />
     </div>
   );

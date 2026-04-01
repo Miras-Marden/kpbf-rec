@@ -6,6 +6,8 @@ import { apiFetch } from "@/lib/api";
 import { normalizeLocale } from "@/lib/i18n";
 import { ErrorBanner } from "@/ui/ErrorBanner";
 import { LoadingState } from "@/ui/LoadingState";
+import { AnimatePresence } from "framer-motion";
+import { RevealItem, RevealList } from "@/ui/motion/Reveal";
 
 type EventSummary = {
   id: string;
@@ -62,22 +64,29 @@ export default function EventsListPage({ params }: { params: { locale: string } 
         </div>
       ) : null}
 
-      <div className="space-y-3 pb-24">
-        {items.map((e) => (
-          <Link
-            key={e.id}
-            href={`/${locale}/events/${e.slug}`}
-            className="block rounded-2xl border border-white/10 bg-white/2 p-4 ring-1 ring-white/5"
-          >
-            <div className="text-sm font-semibold">{e.name}</div>
-            <div className="mt-1 text-xs text-white/60">
-              {e.eventDate ? new Date(e.eventDate).toLocaleDateString() : "Date TBA"}
-              {e.city ? ` • ${e.city}` : ""}
-              {e.country ? ` • ${e.country}` : ""}
+      <AnimatePresence mode="popLayout" initial={false}>
+        {!loading && !error ? (
+          <RevealList>
+            <div className="space-y-3 pb-24">
+              {items.map((e) => (
+                <RevealItem key={e.id}>
+                  <Link
+                    href={`/${locale}/events/${e.slug}`}
+                    className="block rounded-2xl border border-white/10 bg-white/2 p-4 ring-1 ring-white/5"
+                  >
+                    <div className="text-sm font-semibold">{e.name}</div>
+                    <div className="mt-1 text-xs text-white/60">
+                      {e.eventDate ? new Date(e.eventDate).toLocaleDateString() : "Date TBA"}
+                      {e.city ? ` • ${e.city}` : ""}
+                      {e.country ? ` • ${e.country}` : ""}
+                    </div>
+                  </Link>
+                </RevealItem>
+              ))}
             </div>
-          </Link>
-        ))}
-      </div>
+          </RevealList>
+        ) : null}
+      </AnimatePresence>
     </div>
   );
 }

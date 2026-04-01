@@ -1,5 +1,4 @@
 import { Body, Controller, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
-import { AuthGuard } from "@nestjs/passport";
 import { PrismaService } from "../../../prisma/prisma.service";
 import { Roles } from "../../../rbac/roles.decorator";
 import { AuditService } from "../../../audit/audit.service";
@@ -7,6 +6,7 @@ import { ModerationStatus, Role } from "@prisma/client";
 import { AdminCreateFighterDto } from "./dto/admin-create-fighter.dto";
 import { AdminUpdateFighterDto } from "./dto/admin-update-fighter.dto";
 import { CurrentUser } from "../../../auth/current-user.decorator";
+import { AnyAuthGuard } from "../../../auth/any-auth.guard";
 
 function slugify(s: string) {
   return s
@@ -16,7 +16,7 @@ function slugify(s: string) {
     .replace(/(^-|-$)/g, "");
 }
 
-@UseGuards(AuthGuard("jwt"))
+@UseGuards(AnyAuthGuard)
 @Controller("admin/fighters")
 export class AdminFightersController {
   constructor(

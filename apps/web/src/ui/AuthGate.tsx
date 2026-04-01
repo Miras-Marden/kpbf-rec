@@ -26,12 +26,6 @@ export function RequireAuth({
       setLoading(true);
       setError(null);
 
-      const token = auth.getState().accessToken;
-      if (!token) {
-        if (!cancelled) router.replace(`/${normalizeLocale(locale)}/login?next=${encodeURIComponent(pathname ?? "/")}`);
-        return;
-      }
-
       try {
         const me = await apiFetch<{ sub: string; email: string; roles: string[] }>({
           path: "/auth/me"

@@ -1,5 +1,4 @@
 import { BadRequestException, Body, Controller, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
-import { AuthGuard } from "@nestjs/passport";
 import { ModerationStatus, Role } from "@prisma/client";
 import { PrismaService } from "../../../prisma/prisma.service";
 import { AuditService } from "../../../audit/audit.service";
@@ -7,6 +6,7 @@ import { Roles } from "../../../rbac/roles.decorator";
 import { CurrentUser } from "../../../auth/current-user.decorator";
 import { AdminCreateEventDto } from "./dto/admin-create-event.dto";
 import { AdminUpdateEventDto } from "./dto/admin-update-event.dto";
+import { AnyAuthGuard } from "../../../auth/any-auth.guard";
 
 function slugify(s: string) {
   return s
@@ -16,7 +16,7 @@ function slugify(s: string) {
     .replace(/(^-|-$)/g, "");
 }
 
-@UseGuards(AuthGuard("jwt"))
+@UseGuards(AnyAuthGuard)
 @Controller("admin/events")
 export class AdminEventsController {
   constructor(

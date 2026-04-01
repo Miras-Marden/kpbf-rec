@@ -9,6 +9,7 @@ import type { RegisterDto } from "./dto/register.dto";
 import type { LoginDto } from "./dto/login.dto";
 import { Role } from "@prisma/client";
 import type { JwtPayload } from "./jwt-payload";
+import type { SupabaseJwtClaims } from "./supabase-jwt.verifier";
 
 function sha256(input: string) {
   return crypto.createHash("sha256").update(input).digest("hex");
@@ -41,6 +42,23 @@ export class AuthService {
 
   getRefreshCookieName() {
     return this.computeRefreshCookieName();
+  }
+
+  isCookieSecure() {
+    const nodeEnv = this.config.get<string>("NODE_ENV", { infer: true }) ?? "development";
+    return nodeEnv === "production";
+  }
+
+  getCookieSameSite(): "lax" | "strict" | "none" {
+    const raw = (this.config.get<string>("AUTH_COOKIE_SAMESITE", { infer: true }) ?? "lax").toLowerCase();
+    if (raw === "none") return "none";
+    if (raw === "strict") return "strict";
+    return "lax";
+  }
+
+  getCookieDomain(): string | undefined {
+    const d = this.config.get<string>("AUTH_COOKIE_DOMAIN", { infer: true })?.trim();
+    return d ? d : undefined;
   }
 
   async register(dto: RegisterDto) {
@@ -139,7 +157,20 @@ export class AuthService {
     });
 
     if (!tokenRow) throw new UnauthorizedException("Invalid refresh token");
-    if (tokenRow.revokedAt) throw new UnauthorizedException("Refresh token revoked");
+    if (tokenRow.revokedAt) {
+      // Token reuse attempt. Treat as session theft indicator: revoke all refresh tokens for that user.
+      await this.prisma.userRefreshToken.updateMany({
+        where: { userId: tokenRow.userId, revokedAt: null },
+        data: { revokedAt: new Date() }
+      });
+      await this.audit.log({
+        userId: tokenRow.userId,
+        action: "auth.refresh_reuse_detected",
+        entityType: "User",
+        entityId: tokenRow.userId
+      });
+      throw new UnauthorizedException("Refresh token revoked");
+    }
     if (tokenRow.expiresAt.getTime() < Date.now()) throw new UnauthorizedException("Refresh token expired");
 
     // Rotate
@@ -159,6 +190,70 @@ export class AuthService {
     });
 
     return { accessToken, refreshToken: refresh.rawToken, expiresAt: refresh.expiresAt };
+  }
+
+  async logout(rawRefreshToken: string | undefined) {
+    const token = (rawRefreshToken ?? "").trim();
+    if (token) {
+      const tokenHash = sha256(token);
+      const row = await this.prisma.userRefreshToken.findUnique({ where: { tokenHash }, select: { id: true, userId: true } });
+      if (row) {
+        await this.prisma.userRefreshToken.update({ where: { id: row.id }, data: { revokedAt: new Date() } });
+        await this.audit.log({
+          userId: row.userId,
+          action: "auth.logout",
+          entityType: "User",
+          entityId: row.userId
+        });
+      }
+    }
+    return { ok: true };
+  }
+
+  async linkSupabaseIdentity(params: { userId: string; claims: SupabaseJwtClaims }) {
+    const supabaseUserId = params.claims.sub;
+    const email = params.claims.email?.trim().toLowerCase();
+    if (!supabaseUserId || !email) throw new BadRequestException("Invalid Supabase claims");
+
+    // Prevent linking a Supabase identity that's already linked to someone else.
+    const existingBySupabase = await this.prisma.user.findUnique({
+      where: { supabaseUserId },
+      select: { id: true, email: true }
+    });
+    if (existingBySupabase && existingBySupabase.id !== params.userId) {
+      throw new BadRequestException("Supabase user already linked to another account");
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: params.userId },
+      select: { id: true, email: true, supabaseUserId: true }
+    });
+    if (!user) throw new BadRequestException("User not found");
+
+    if (user.email.toLowerCase() !== email) {
+      throw new BadRequestException("Supabase email does not match current user");
+    }
+
+    if (user.supabaseUserId && user.supabaseUserId !== supabaseUserId) {
+      throw new BadRequestException("Account already linked to a different Supabase user");
+    }
+
+    if (!user.supabaseUserId) {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { supabaseUserId }
+      });
+
+      await this.audit.log({
+        userId: user.id,
+        action: "auth.supabase_link",
+        entityType: "User",
+        entityId: user.id,
+        note: `supabaseUserId=${supabaseUserId}`
+      });
+    }
+
+    return { ok: true, supabaseUserId };
   }
 }
 

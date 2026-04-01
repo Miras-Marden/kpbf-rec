@@ -6,6 +6,8 @@ import { apiFetch } from "@/lib/api";
 import { ErrorBanner } from "@/ui/ErrorBanner";
 import { LoadingState } from "@/ui/LoadingState";
 import { normalizeLocale } from "@/lib/i18n";
+import { AnimatePresence } from "framer-motion";
+import { RevealItem, RevealList } from "@/ui/motion/Reveal";
 
 type FighterSummary = {
   id: string;
@@ -93,50 +95,57 @@ export default function FightersListPage({
         </div>
       ) : null}
 
-      <div className="space-y-3 pb-24">
-        {items.map((f) => {
-          const href = `/${locale}/fighters/${f.slug}`;
-          return (
-            <Link
-              key={f.id}
-              href={href}
-              className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/2 p-3 ring-1 ring-white/5"
-            >
-              <div className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-xl bg-white/5 ring-1 ring-white/10">
-                {f.photoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={f.photoUrl}
-                    alt={f.fullName}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="grid h-full w-full place-items-center text-xs font-semibold text-white/40">
-                    Photo
-                  </div>
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-semibold text-white/95">
-                  {f.fullName}
-                </div>
-                <div className="mt-1 text-xs text-white/60">
-                  {f.nationality ?? "Kazakhstan"}
-                  {f.regionCity ? ` • ${f.regionCity}` : ""}
-                </div>
-                <div className="mt-2 text-xs text-white/60">
-                  {f.weightCategory ? f.weightCategory.name : "—"}
-                </div>
-              </div>
-              <div className="text-right text-xs text-white/70">
-                {(f.record
-                  ? `${f.record.wins}-${f.record.losses}-${f.record.draws}`
-                  : "—")}
-              </div>
-            </Link>
-          );
-        })}
-      </div>
+      <AnimatePresence mode="popLayout" initial={false}>
+        {!loading && !error ? (
+          <RevealList>
+            <div className="space-y-3 pb-24">
+              {items.map((f) => {
+                const href = `/${locale}/fighters/${f.slug}`;
+                return (
+                  <RevealItem key={f.id}>
+                    <Link
+                      href={href}
+                      className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/2 p-3 ring-1 ring-white/5"
+                    >
+                      <div className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-xl bg-white/5 ring-1 ring-white/10">
+                        {f.photoUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={f.photoUrl}
+                            alt={f.fullName}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="grid h-full w-full place-items-center text-xs font-semibold text-white/40">
+                            Photo
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-semibold text-white/95">
+                          {f.fullName}
+                        </div>
+                        <div className="mt-1 text-xs text-white/60">
+                          {f.nationality ?? "Kazakhstan"}
+                          {f.regionCity ? ` • ${f.regionCity}` : ""}
+                        </div>
+                        <div className="mt-2 text-xs text-white/60">
+                          {f.weightCategory ? f.weightCategory.name : "—"}
+                        </div>
+                      </div>
+                      <div className="text-right text-xs text-white/70">
+                        {(f.record
+                          ? `${f.record.wins}-${f.record.losses}-${f.record.draws}`
+                          : "—")}
+                      </div>
+                    </Link>
+                  </RevealItem>
+                );
+              })}
+            </div>
+          </RevealList>
+        ) : null}
+      </AnimatePresence>
     </div>
   );
 }

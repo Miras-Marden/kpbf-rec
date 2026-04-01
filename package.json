@@ -13,6 +13,7 @@
     "format": "prettier -w ."
   },
   "devDependencies": {
+    "husky": "^9.1.7",
     "prettier": "^3.3.3",
     "turbo": "^2.0.12"
   }

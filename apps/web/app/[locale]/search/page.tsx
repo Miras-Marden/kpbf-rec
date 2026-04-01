@@ -5,6 +5,8 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { LoadingState } from "@/ui/LoadingState";
 import { ErrorBanner } from "@/ui/ErrorBanner";
+import { AnimatePresence } from "framer-motion";
+import { RevealItem, RevealList } from "@/ui/motion/Reveal";
 
 type SearchResult =
   | { type: "fighter"; id: string; slug: string; title: string }
@@ -71,33 +73,37 @@ export default function SearchPage({
       {loading ? <LoadingState label="Searching..." /> : null}
       {error ? <ErrorBanner message={error} /> : null}
 
-      {!loading && !error && results.length > 0 ? (
-        <div className="space-y-2">
-          {results.map((r) => {
-            if (r.type === "fighter") {
-              return (
-                <Link
-                  key={`${r.type}:${r.id}`}
-                  href={`/${locale}/fighters/${r.slug}`}
-                  className="block rounded-xl border border-white/10 bg-white/2 px-3 py-3 text-sm"
-                >
-                  <div className="text-xs text-white/60">{r.type}</div>
-                  <div className="font-semibold">{r.title}</div>
-                </Link>
-              );
-            }
-            return (
-              <div
-                key={`${r.type}:${r.id}`}
-                className="rounded-xl border border-white/10 bg-white/2 px-3 py-3 text-sm text-white/70"
-              >
-                <div className="text-xs text-white/60">{r.type}</div>
-                <div className="font-semibold">{r.title}</div>
-              </div>
-            );
-          })}
-        </div>
-      ) : null}
+      <AnimatePresence mode="popLayout" initial={false}>
+        {!loading && !error && results.length > 0 ? (
+          <RevealList>
+            <div className="space-y-2">
+              {results.map((r) => {
+                if (r.type === "fighter") {
+                  return (
+                    <RevealItem key={`${r.type}:${r.id}`}>
+                      <Link
+                        href={`/${locale}/fighters/${r.slug}`}
+                        className="block rounded-xl border border-white/10 bg-white/2 px-3 py-3 text-sm"
+                      >
+                        <div className="text-xs text-white/60">{r.type}</div>
+                        <div className="font-semibold">{r.title}</div>
+                      </Link>
+                    </RevealItem>
+                  );
+                }
+                return (
+                  <RevealItem key={`${r.type}:${r.id}`}>
+                    <div className="rounded-xl border border-white/10 bg-white/2 px-3 py-3 text-sm text-white/70">
+                      <div className="text-xs text-white/60">{r.type}</div>
+                      <div className="font-semibold">{r.title}</div>
+                    </div>
+                  </RevealItem>
+                );
+              })}
+            </div>
+          </RevealList>
+        ) : null}
+      </AnimatePresence>
 
       {!loading && !error && q.trim() && results.length === 0 ? (
         <div className="rounded-2xl border border-white/10 bg-white/3 p-4 text-sm text-white/70">

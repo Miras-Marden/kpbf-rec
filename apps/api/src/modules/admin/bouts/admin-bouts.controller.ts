@@ -8,7 +8,6 @@ import {
   Post,
   UseGuards
 } from "@nestjs/common";
-import { AuthGuard } from "@nestjs/passport";
 import { ModerationStatus, Role } from "@prisma/client";
 import { PrismaService } from "../../../prisma/prisma.service";
 import { AuditService } from "../../../audit/audit.service";
@@ -17,6 +16,7 @@ import { CurrentUser } from "../../../auth/current-user.decorator";
 import { AdminCreateBoutDto } from "./dto/admin-create-bout.dto";
 import { AdminUpdateBoutDto } from "./dto/admin-update-bout.dto";
 import { RankingsOrchestratorService } from "../../rankings/rankings-orchestrator.service";
+import { AnyAuthGuard } from "../../../auth/any-auth.guard";
 
 function slugify(s: string) {
   return s
@@ -26,7 +26,7 @@ function slugify(s: string) {
     .replace(/(^-|-$)/g, "");
 }
 
-@UseGuards(AuthGuard("jwt"))
+@UseGuards(AnyAuthGuard)
 @Controller("admin/bouts")
 export class AdminBoutsController {
   constructor(
@@ -131,7 +131,16 @@ export class AdminBoutsController {
   ) {
     const current = await this.prisma.bout.findUnique({
       where: { id },
-      select: { fighterAId: true, fighterBId: true, eventId: true, weightCategoryId: true }
+      select: {
+        fighterAId: true,
+        fighterBId: true,
+        eventId: true,
+        weightCategoryId: true,
+        moderationStatus: true,
+        boutDate: true,
+        result: true,
+        method: true
+      }
     });
     if (!current) throw new BadRequestException("Bout not found");
 
@@ -170,7 +179,25 @@ export class AdminBoutsController {
       entityId: bout.id
     });
 
-    return { bout };
+    const wasPublished = current.moderationStatus === ModerationStatus.PUBLISHED;
+    const needsRecalc =
+      wasPublished &&
+      (dto.fighterAId !== undefined ||
+        dto.fighterBId !== undefined ||
+        dto.boutDate !== undefined ||
+        dto.weightCategoryId !== undefined ||
+        dto.eventId !== undefined ||
+        dto.result !== undefined ||
+        dto.method !== undefined);
+
+    const rankingRecalculation = needsRecalc
+      ? await this.rankingsOrchestrator.triggerRecalculation({
+          source: "bout.update_published",
+          boutId: bout.id
+        })
+      : null;
+
+    return { bout, rankingRecalculation };
   }
 
   @Post(":id/submit")
@@ -225,6 +252,12 @@ export class AdminBoutsController {
   @Post(":id/reject")
   @Roles(Role.ADMIN)
   async reject(@CurrentUser() user: { sub: string }, @Param("id") id: string) {
+    const prev = await this.prisma.bout.findUnique({
+      where: { id },
+      select: { id: true, moderationStatus: true }
+    });
+    if (!prev) throw new BadRequestException("Bout not found");
+
     const bout = await this.prisma.bout.update({
       where: { id },
       data: {
@@ -241,7 +274,15 @@ export class AdminBoutsController {
       entityId: bout.id
     });
 
-    return { bout };
+    const rankingRecalculation =
+      prev.moderationStatus === ModerationStatus.PUBLISHED
+        ? await this.rankingsOrchestrator.triggerRecalculation({
+            source: "bout.unpublish_reject",
+            boutId: bout.id
+          })
+        : null;
+
+    return { bout, rankingRecalculation };
   }
 }
 
