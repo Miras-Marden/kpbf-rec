@@ -2,7 +2,7 @@ export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 import { auth, getLoginHref } from "./auth";
-import { getSupabaseBrowserClient } from "./supabase/browser";
+import { getCurrentBearerToken } from "./supabase/auth";
 
 async function safeText(res: Response) {
   try {
@@ -13,14 +13,10 @@ async function safeText(res: Response) {
 }
 
 async function getBearerToken() {
-  const inMemory = auth.getState().accessToken;
-  if (inMemory) return inMemory;
-  if (typeof window === "undefined") return null;
-  const supabase = getSupabaseBrowserClient();
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token ?? null;
-  auth.setAccessToken(token);
-  return token;
+  // Centralized token source: AuthBootstrap -> auth state.
+  // Avoid calling supabase.auth.getSession() inside the API client.
+  const inMemory = getCurrentBearerToken() ?? auth.getState().accessToken;
+  return inMemory ?? null;
 }
 
 export async function apiFetch<T>({

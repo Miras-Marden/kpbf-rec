@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { auth } from "@/lib/auth";
+import { useAuth } from "@/lib/useAuth";
 import { normalizeLocale } from "@/lib/i18n";
-import { bootstrapCanonicalIdentity } from "@/lib/supabase/auth";
 import { LoadingState } from "./LoadingState";
 import { ErrorBanner } from "./ErrorBanner";
 
@@ -17,37 +17,38 @@ export function RequireAuth({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const a = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    async function run() {
-      setLoading(true);
-      setError(null);
+    setError(null);
 
-      try {
-        await bootstrapCanonicalIdentity();
-      } catch (e) {
-        auth.clear();
-        if (!cancelled) {
-          router.replace(`/${normalizeLocale(locale)}/login?next=${encodeURIComponent(pathname ?? "/")}`);
-        }
-        return;
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+    // Wait for global bootstrap (AuthBootstrap) instead of bootstrapping here.
+    if (a.bootstrapStatus !== "ready") {
+      setLoading(true);
+      return () => {
+        cancelled = true;
+      };
     }
-    run().catch((e) => {
+
+    const ok = !!a.user;
+    if (!ok) {
+      auth.clear();
       if (!cancelled) {
-        setError(e instanceof Error ? e.message : "Failed");
-        setLoading(false);
+        router.replace(`/${normalizeLocale(locale)}/login?next=${encodeURIComponent(pathname ?? "/")}`);
       }
-    });
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setLoading(false);
     return () => {
       cancelled = true;
     };
-  }, [locale, pathname, router]);
+  }, [a.bootstrapStatus, a.user, locale, pathname, router]);
 
   if (loading) return <LoadingState label="Checking session..." />;
   if (error) return <ErrorBanner message={error} />;

@@ -3,27 +3,33 @@
 import { useEffect } from "react";
 import { auth } from "@/lib/auth";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { bootstrapAuthSession } from "@/lib/supabase/auth";
 
 export function AuthBootstrap() {
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
     let mounted = true;
 
-    supabase.auth
-      .getSession()
-      .then(({ data }) => {
-        if (!mounted) return;
-        auth.setAccessToken(data.session?.access_token ?? null);
-      })
-      .catch(() => {
-        if (!mounted) return;
-        auth.clear();
-      });
+    // Canonical app bootstrap: sync/provision + load /auth/me if session exists.
+    bootstrapAuthSession().catch(() => {
+      // Errors are handled inside bootstrap; keep this as a final safety net.
+      if (!mounted) return;
+      auth.clear();
+    });
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       auth.setAccessToken(session?.access_token ?? null);
       if (!session) {
         auth.setUser(null);
+        auth.setBootstrapStatus("ready");
+        return;
+      }
+      // If session exists (sign-in / refresh) and canonical identity isn't loaded yet,
+      // kick a deduped bootstrap. Single-flight prevents initial load duplication.
+      if (!auth.getState().user) {
+        bootstrapAuthSession({ force: true }).catch(() => {
+          auth.clear();
+        });
       }
     });
 

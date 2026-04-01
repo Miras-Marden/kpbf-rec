@@ -19,19 +19,79 @@ async function syncSupabaseIdentity(accessToken: string) {
   }
 }
 
-export async function bootstrapCanonicalIdentity() {
-  const supabase = getSupabaseBrowserClient();
-  const { data } = await supabase.auth.getSession();
-  const accessToken = data.session?.access_token ?? null;
-  if (!accessToken) {
-    auth.clear();
-    throw new Error("No active session");
+type CanonicalMe = { sub: string; email: string; roles: string[] };
+
+let bootstrapPromise: Promise<CanonicalMe | null> | null = null;
+
+function isAuthFailure(err: unknown) {
+  const msg = err instanceof Error ? err.message : String(err);
+  return msg.includes("401") || msg.toLowerCase().includes("unauthorized") || msg.toLowerCase().includes("jwt");
+}
+
+/**
+ * Canonical bootstrap flow for the entire web app.
+ *
+ * - Reads current Supabase session
+ * - If session exists: /auth/supabase/sync -> /auth/me and stores canonical identity/roles
+ * - If no session: clears auth state
+ *
+ * Single-flight (deduped) to avoid double sync/me calls during initial load.
+ */
+export async function bootstrapAuthSession(opts?: { force?: boolean }) {
+  if (!opts?.force && bootstrapPromise) return bootstrapPromise;
+
+  auth.setBootstrapStatus("bootstrapping");
+
+  bootstrapPromise = (async () => {
+    const supabase = getSupabaseBrowserClient();
+    const { data } = await supabase.auth.getSession();
+    const accessToken = data.session?.access_token ?? null;
+
+    if (!accessToken) {
+      auth.clear();
+      return null;
+    }
+
+    auth.setAccessToken(accessToken);
+
+    try {
+      await syncSupabaseIdentity(accessToken);
+      const me = await apiFetch<CanonicalMe>({ path: "/auth/me" });
+      auth.setUser(me);
+      auth.setBootstrapStatus("ready");
+      return me;
+    } catch (e) {
+      // If the backend rejects the token, treat as invalid session and clear.
+      if (isAuthFailure(e)) {
+        try {
+          await supabase.auth.signOut();
+        } catch {
+          // ignore
+        }
+        auth.clear();
+        return null;
+      }
+      // Non-auth failures should still end bootstrapping so the app doesn't hang.
+      auth.setBootstrapStatus("ready");
+      throw e;
+    }
+  })();
+
+  try {
+    return await bootstrapPromise;
+  } finally {
+    // Allow a future forced re-bootstrap (e.g. after sign-in) while preventing initial-load duplication.
+    auth.setBootstrapStatus("ready");
   }
-  auth.setAccessToken(accessToken);
-  await syncSupabaseIdentity(accessToken);
-  const me = await apiFetch<{ sub: string; email: string; roles: string[] }>({ path: "/auth/me" });
-  auth.setUser(me);
-  return me;
+}
+
+export function getCurrentBearerToken() {
+  return auth.getState().accessToken;
+}
+
+// Back-compat alias for callers that expect this name.
+export async function bootstrapCanonicalIdentity() {
+  return bootstrapAuthSession({ force: true });
 }
 
 export async function signInWithSupabase(params: { email: string; password: string }) {
@@ -41,7 +101,7 @@ export async function signInWithSupabase(params: { email: string; password: stri
     password: params.password
   });
   if (error) throw new Error(error.message);
-  return bootstrapCanonicalIdentity();
+  return bootstrapAuthSession({ force: true });
 }
 
 export async function signUpWithSupabase(params: {
@@ -65,7 +125,7 @@ export async function signUpWithSupabase(params: {
   if (!data.session) {
     throw new Error("Registration created. Confirm your email before signing in.");
   }
-  return bootstrapCanonicalIdentity();
+  return bootstrapAuthSession({ force: true });
 }
 
 export async function signOutSupabase() {

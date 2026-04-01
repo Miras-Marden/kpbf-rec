@@ -6,14 +6,18 @@ export type AuthUser = {
 
 type Listener = () => void;
 
+export type AuthBootstrapStatus = "idle" | "bootstrapping" | "ready";
+
 type State = {
   accessToken: string | null;
   user: AuthUser | null;
+  bootstrapStatus: AuthBootstrapStatus;
 };
 
 let state: State = {
   accessToken: null,
-  user: null
+  user: null,
+  bootstrapStatus: "idle"
 };
 
 const listeners = new Set<Listener>();
@@ -30,6 +34,10 @@ export const auth = {
   getState(): State {
     return state;
   },
+  setBootstrapStatus(status: AuthBootstrapStatus) {
+    state = { ...state, bootstrapStatus: status };
+    emit();
+  },
   setAccessToken(token: string | null) {
     state = { ...state, accessToken: token };
     if (!token) state = { ...state, user: null };
@@ -40,7 +48,8 @@ export const auth = {
     emit();
   },
   clear() {
-    state = { accessToken: null, user: null };
+    // Treat clear as "initialized but unauthenticated" (so route guards don't hang).
+    state = { accessToken: null, user: null, bootstrapStatus: "ready" };
     emit();
   }
 };
