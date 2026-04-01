@@ -28,19 +28,38 @@ export class AuthIdentityService {
     private readonly supabaseJwt: SupabaseJwtVerifier
   ) {}
 
+  private mapRoles(roles: Array<{ role: AuthenticatedIdentity["roles"][number] }>) {
+    return roles.map((r) => r.role);
+  }
+
+  private async loadCanonicalUserIdentity(
+    userId: string,
+    authSource: AuthenticatedIdentity["authSource"],
+    supabaseUserId: string | null = null
+  ): Promise<AuthenticatedIdentity> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { roles: true }
+    });
+    if (!user) {
+      throw new UnauthorizedException();
+    }
+    return {
+      sub: user.id,
+      email: normalizeEmail(user.email),
+      roles: this.mapRoles(user.roles),
+      authSource,
+      supabaseUserId
+    };
+  }
+
   private async resolveFromLocalJwt(authorizationHeader: string | undefined): Promise<AuthenticatedIdentity | null> {
     const token = extractBearerToken(authorizationHeader);
     if (!token) return null;
     try {
       const payload = await this.jwt.verifyAsync<JwtPayload>(token);
-      if (!payload?.sub || !payload.email || !Array.isArray(payload.roles)) return null;
-      return {
-        sub: payload.sub,
-        email: normalizeEmail(payload.email),
-        roles: payload.roles,
-        authSource: "local-jwt",
-        supabaseUserId: null
-      };
+      if (!payload?.sub) return null;
+      return this.loadCanonicalUserIdentity(payload.sub, "local-jwt", null);
     } catch {
       return null;
     }
@@ -48,6 +67,12 @@ export class AuthIdentityService {
 
   private isSupabaseAutolinkEnabled() {
     return this.config.get<boolean>("AUTH_ENABLE_SUPABASE_AUTOLINK", { infer: true }) === true;
+  }
+
+  private isSupabaseEmailMatchLoginEnabled() {
+    return (
+      this.config.get<boolean>("AUTH_ALLOW_SUPABASE_EMAIL_MATCH_LOGIN", { infer: true }) === true
+    );
   }
 
   private async resolveFromSupabaseJwt(authorizationHeader: string | undefined): Promise<AuthenticatedIdentity | null> {
@@ -66,28 +91,18 @@ export class AuthIdentityService {
 
     const bySupabase = await this.prisma.user.findUnique({
       where: { supabaseUserId },
-      include: { roles: true }
+      select: { id: true }
     });
     if (bySupabase) {
-      return {
-        sub: bySupabase.id,
-        email: normalizeEmail(bySupabase.email),
-        roles: bySupabase.roles.map((r) => r.role),
-        authSource: "supabase",
-        supabaseUserId
-      };
+      return this.loadCanonicalUserIdentity(bySupabase.id, "supabase", supabaseUserId);
     }
 
-    // Migration bridge: optional safe auto-link by email.
     const byEmail = await this.prisma.user.findUnique({
       where: { email },
-      include: { roles: true }
+      select: { id: true, supabaseUserId: true }
     });
-    if (!byEmail) {
-      throw new UnauthorizedException("User not provisioned");
-    }
 
-    if (this.isSupabaseAutolinkEnabled()) {
+    if (byEmail && this.isSupabaseAutolinkEnabled()) {
       if (!byEmail.supabaseUserId) {
         const existingBySupabase = await this.prisma.user.findUnique({
           where: { supabaseUserId },
@@ -105,26 +120,16 @@ export class AuthIdentityService {
             entityId: byEmail.id,
             note: `supabaseUserId=${supabaseUserId}`
           });
-          return {
-            sub: byEmail.id,
-            email,
-            roles: byEmail.roles.map((r) => r.role),
-            authSource: "supabase",
-            supabaseUserId
-          };
+          return this.loadCanonicalUserIdentity(byEmail.id, "supabase", supabaseUserId);
         }
       }
     }
 
-    // No auto-link: still allow login if email matches an existing user,
-    // but we don't persist supabaseUserId without explicit link.
-    return {
-      sub: byEmail.id,
-      email,
-      roles: byEmail.roles.map((r) => r.role),
-      authSource: "supabase",
-      supabaseUserId: null
-    };
+    if (byEmail && this.isSupabaseEmailMatchLoginEnabled()) {
+      return this.loadCanonicalUserIdentity(byEmail.id, "supabase", null);
+    }
+
+    throw new UnauthorizedException("Supabase account is not linked");
   }
 
   async resolveOrThrow(authorizationHeader: string | undefined): Promise<AuthenticatedIdentity> {
