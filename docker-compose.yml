@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: kpbf_rec
+      POSTGRES_USER: kpbf_rec
+      POSTGRES_PASSWORD: kpbf_rec
+    ports:
+      - "5432:5432"
+    volumes:
+      - kpbf_rec_postgres:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7.2
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+volumes:
+  kpbf_rec_postgres:
+

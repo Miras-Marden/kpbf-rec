@@ -1,0 +1,343 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  EDITOR
+  USER
+}
+
+enum ModerationStatus {
+  DRAFT
+  PENDING
+  PUBLISHED
+  REJECTED
+}
+
+enum RankingScope {
+  WEIGHT_CATEGORY
+  P4P
+}
+
+enum RankingStyle {
+  ACTIVE
+  ALL_TIME
+}
+
+enum FightMethod {
+  UD
+  SD
+  MD
+  KO
+  TKO
+  DQ
+  Draw
+  NC
+}
+
+enum FightOutcome {
+  WIN
+  LOSS
+  DRAW
+  NC
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  displayName  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  roles        UserRole[]
+  refreshTokens UserRefreshToken[]
+
+  createdFighters Fighter[] @relation("UserCreatedFighters")
+  updatedFighters Fighter[] @relation("UserUpdatedFighters")
+  approvedFighters Fighter[] @relation("UserApprovedFighters")
+
+  createdBouts Bout[] @relation("UserCreatedBouts")
+  updatedBouts Bout[] @relation("UserUpdatedBouts")
+  approvedBouts Bout[] @relation("UserApprovedBouts")
+
+  createdEvents Event[] @relation("UserCreatedEvents")
+  updatedEvents Event[] @relation("UserUpdatedEvents")
+  approvedEvents Event[] @relation("UserApprovedEvents")
+
+  createdNews News[] @relation("UserCreatedNews")
+  updatedNews News[] @relation("UserUpdatedNews")
+  approvedNews News[] @relation("UserApprovedNews")
+
+  auditLogs    AuditLog[]
+}
+
+model UserRole {
+  userId String
+  role   Role
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, role])
+}
+
+model UserRefreshToken {
+  id          String   @id @default(cuid())
+  userId      String
+  tokenHash   String   @unique
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+  revokedAt   DateTime?
+
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  userId      String?
+  action      String
+  entityType  String?
+  entityId    String?
+  note        String?
+
+  user        User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model WeightCategory {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  weightKg  Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  fighters  Fighter[]
+  bouts     Bout[]
+  rankingsWeightCurrent RankingCurrent[] @relation("WeightCategoryRankingsCurrent")
+  rankingsWeightSnapshot RankingSnapshot[] @relation("WeightCategoryRankingsSnapshot")
+}
+
+model Fighter {
+  id           String   @id @default(cuid())
+  slug         String   @unique
+  fullName     String
+  photoUrl     String?
+  dateOfBirth  DateTime?
+  nationality  String?
+  regionCity   String?
+  heightCm     Int?
+  reachCm      Int?
+  stance       String?
+
+  weightCategoryId String?
+  weightCategory   WeightCategory? @relation(fields: [weightCategoryId], references: [id])
+
+  moderationStatus ModerationStatus @default(DRAFT)
+  moderationNote   String?
+  approvedByUserId String?
+  publishedAt       DateTime?
+
+  createdByUserId String
+  updatedByUserId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdByUser User @relation("UserCreatedFighters", fields: [createdByUserId], references: [id])
+  updatedByUser User @relation("UserUpdatedFighters", fields: [updatedByUserId], references: [id])
+  approvedByUser User? @relation("UserApprovedFighters", fields: [approvedByUserId], references: [id])
+
+  boutsAsA Bout[] @relation("BoutParticipantA")
+  boutsAsB Bout[] @relation("BoutParticipantB")
+
+  rankingsCurrent RankingCurrent[]
+  rankingsSnapshots RankingSnapshot[]
+
+  news NewsFighter[]
+}
+
+model Event {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  eventDate DateTime?
+  city      String?
+  country   String?
+
+  moderationStatus ModerationStatus @default(DRAFT)
+  moderationNote   String?
+  approvedByUserId String?
+  publishedAt       DateTime?
+
+  createdByUserId String
+  updatedByUserId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdByUser User @relation("UserCreatedEvents", fields: [createdByUserId], references: [id])
+  updatedByUser User @relation("UserUpdatedEvents", fields: [updatedByUserId], references: [id])
+  approvedByUser User? @relation("UserApprovedEvents", fields: [approvedByUserId], references: [id])
+
+  bouts     Bout[]
+  news      News[]
+}
+
+model Bout {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  boutDate  DateTime
+
+  weightCategoryId String?
+  weightCategory   WeightCategory? @relation(fields: [weightCategoryId], references: [id])
+
+  fighterAId String
+  fighterBId String
+
+  fighterA Fighter @relation("BoutParticipantA", fields: [fighterAId], references: [id])
+  fighterB Fighter @relation("BoutParticipantB", fields: [fighterBId], references: [id])
+
+  result        FightOutcome
+  method        FightMethod
+
+  venue         String?
+  city          String?
+  country       String?
+
+  eventId String?
+  event   Event? @relation(fields: [eventId], references: [id])
+
+  moderationStatus ModerationStatus @default(DRAFT)
+  moderationNote   String?
+  approvedByUserId String?
+  publishedAt       DateTime?
+
+  referee String?
+
+  createdByUserId String
+  updatedByUserId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdByUser User @relation("UserCreatedBouts", fields: [createdByUserId], references: [id])
+  updatedByUser User @relation("UserUpdatedBouts", fields: [updatedByUserId], references: [id])
+  approvedByUser User? @relation("UserApprovedBouts", fields: [approvedByUserId], references: [id])
+
+  judgesScores JudgesScore[]
+}
+
+model JudgesScore {
+  id        String   @id @default(cuid())
+  boutId    String
+  judgeName String
+  roundsJson Json?
+  createdAt DateTime @default(now())
+
+  bout      Bout @relation(fields: [boutId], references: [id], onDelete: Cascade)
+
+  @@index([boutId])
+}
+
+model News {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  title     String
+  excerpt   String?
+  contentMd String?
+
+  coverPhotoUrl String?
+  eventId String?
+  event Event? @relation(fields: [eventId], references: [id])
+
+  moderationStatus ModerationStatus @default(DRAFT)
+  moderationNote   String?
+  approvedByUserId String?
+  publishedAt       DateTime?
+
+  createdByUserId String
+  updatedByUserId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdByUser User @relation("UserCreatedNews", fields: [createdByUserId], references: [id])
+  updatedByUser User @relation("UserUpdatedNews", fields: [updatedByUserId], references: [id])
+  approvedByUser User? @relation("UserApprovedNews", fields: [approvedByUserId], references: [id])
+
+  fighters NewsFighter[]
+}
+
+model NewsFighter {
+  newsId    String
+  fighterId String
+
+  news      News @relation(fields: [newsId], references: [id], onDelete: Cascade)
+  fighter   Fighter @relation(fields: [fighterId], references: [id], onDelete: Cascade)
+
+  @@id([newsId, fighterId])
+}
+
+model MediaFile {
+  id        String   @id @default(cuid())
+  kind      String   // "photo" | "video" | "image" etc
+  url       String
+  mimeType  String?
+  filename  String?
+  sizeBytes Int?
+
+  createdAt DateTime @default(now())
+}
+
+model RankingCurrent {
+  id        String   @id @default(cuid())
+
+  scope     RankingScope
+  style     RankingStyle
+
+  fighterId String
+  fighter   Fighter @relation(fields: [fighterId], references: [id], onDelete: Cascade)
+
+  weightCategoryId String?
+  weightCategory   WeightCategory? @relation("WeightCategoryRankingsCurrent", fields: [weightCategoryId], references: [id])
+
+  rating    Float
+  rank      Int
+
+  methodologyVersion String
+  explanationJson    Json?
+  computedAt DateTime @default(now())
+
+  @@unique([scope, style, fighterId, weightCategoryId])
+}
+
+model RankingSnapshot {
+  id        String   @id @default(cuid())
+
+  snapshotAt DateTime @default(now())
+  scope       RankingScope
+  style       RankingStyle
+
+  fighterId String
+  fighter   Fighter @relation(fields: [fighterId], references: [id], onDelete: Cascade)
+
+  weightCategoryId String?
+  weightCategory   WeightCategory? @relation("WeightCategoryRankingsSnapshot", fields: [weightCategoryId], references: [id])
+
+  rating    Float
+  rank      Int
+
+  methodologyVersion String
+  explanationJson    Json?
+
+  @@index([snapshotAt, scope, style])
+  @@unique([snapshotAt, scope, style, fighterId, weightCategoryId])
+}
+
