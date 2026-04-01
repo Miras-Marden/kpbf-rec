@@ -6,6 +6,8 @@ import { AuthService } from "./auth.service";
 import { AuthController } from "./auth.controller";
 import { JwtStrategy } from "./jwt.strategy";
 import { AnyAuthGuard } from "./any-auth.guard";
+import { SupabaseJwtVerifier } from "./supabase-jwt.verifier";
+import { AuthIdentityService } from "./auth-identity.service";
 
 @Module({
   imports: [
@@ -22,8 +24,8 @@ import { AnyAuthGuard } from "./any-auth.guard";
     })
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, AnyAuthGuard],
-  exports: [AuthService, AnyAuthGuard]
+  providers: [AuthService, JwtStrategy, SupabaseJwtVerifier, AuthIdentityService, AnyAuthGuard],
+  exports: [AuthService, SupabaseJwtVerifier, AuthIdentityService, AnyAuthGuard]
 })
 export class AuthModule {}
 

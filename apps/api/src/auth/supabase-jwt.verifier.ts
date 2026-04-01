@@ -1,3 +1,4 @@
+import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 
@@ -16,6 +17,7 @@ function normalizeBearerToken(raw: string) {
   return v;
 }
 
+@Injectable()
 export class SupabaseJwtVerifier {
   private jwks?: ReturnType<typeof createRemoteJWKSet>;
   private issuer?: string;
@@ -42,17 +44,22 @@ export class SupabaseJwtVerifier {
     return this.enabled;
   }
 
-  async verifyAuthorizationHeader(authorizationHeader: string | undefined): Promise<SupabaseJwtClaims | null> {
+  async verifyAccessToken(accessToken: string): Promise<SupabaseJwtClaims | null> {
     if (!this.enabled || !this.jwks) return null;
-    const token = normalizeBearerToken(authorizationHeader ?? "");
+    const token = (accessToken ?? "").trim();
     if (!token) return null;
-
     const { payload } = await jwtVerify(token, this.jwks, {
       issuer: this.issuer || undefined,
       audience: this.audience || undefined
     });
-
     return payload as unknown as SupabaseJwtClaims;
+  }
+
+  async verifyAuthorizationHeader(authorizationHeader: string | undefined): Promise<SupabaseJwtClaims | null> {
+    if (!this.enabled || !this.jwks) return null;
+    const token = normalizeBearerToken(authorizationHeader ?? "");
+    if (!token) return null;
+    return this.verifyAccessToken(token);
   }
 }
 

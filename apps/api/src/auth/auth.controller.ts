@@ -11,13 +11,12 @@ import { Throttle } from "@nestjs/throttler";
 import { AnyAuthGuard } from "./any-auth.guard";
 import { LinkSupabaseDto } from "./dto/link-supabase.dto";
 import { SupabaseJwtVerifier } from "./supabase-jwt.verifier";
-import { ConfigService } from "@nestjs/config";
 
 @Controller("auth")
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
-    private readonly config: ConfigService
+    private readonly supabaseJwt: SupabaseJwtVerifier
   ) {}
 
   @Post("register")
@@ -100,15 +99,14 @@ export class AuthController {
     @CurrentUser() user: { sub: string },
     @Body() dto: LinkSupabaseDto
   ) {
-    const verifier = new SupabaseJwtVerifier(this.config);
-    if (!verifier.isEnabled()) {
+    if (!this.supabaseJwt.isEnabled()) {
       return {
         ok: false,
         reason: "SUPABASE_JWKS_URL/SUPABASE_URL not configured"
       };
     }
 
-    const claims = await verifier.verifyAuthorizationHeader(`Bearer ${dto.supabaseAccessToken}`);
+    const claims = await this.supabaseJwt.verifyAccessToken(dto.supabaseAccessToken);
     if (!claims?.sub || !claims.email) {
       return {
         ok: false,
