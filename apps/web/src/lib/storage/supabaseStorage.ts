@@ -8,11 +8,13 @@ export type SignedUpload = {
   signedUrl: string;
 };
 
+export type SignedMediaUpload = { upload: SignedUpload; publicUrl: string };
+
 export async function createSignedMediaUpload(params: {
   path: string;
   contentType?: string;
-}): Promise<{ upload: SignedUpload; publicUrl: string }> {
-  return apiFetch<{ upload: SignedUpload; publicUrl: string }>({
+}): Promise<SignedMediaUpload> {
+  return apiFetch<SignedMediaUpload>({
     path: "/storage/supabase/signed-upload",
     method: "POST",
     body: {
@@ -23,7 +25,7 @@ export async function createSignedMediaUpload(params: {
 }
 
 export async function uploadFileToSignedUrl(params: {
-  upload: SignedUpload;
+  signed: SignedMediaUpload;
   file: File;
   contentType?: string;
 }): Promise<{ publicUrl: string; bucket: string; path: string }> {
@@ -31,8 +33,8 @@ export async function uploadFileToSignedUrl(params: {
   const contentType = params.contentType || params.file.type || undefined;
 
   const res = await supabase.storage
-    .from(params.upload.bucket)
-    .uploadToSignedUrl(params.upload.path, params.upload.token, params.file, {
+    .from(params.signed.upload.bucket)
+    .uploadToSignedUrl(params.signed.upload.path, params.signed.upload.token, params.file, {
       contentType
     });
 
@@ -40,11 +42,10 @@ export async function uploadFileToSignedUrl(params: {
     throw new Error(`Supabase signed upload failed: ${res.error.message}`);
   }
 
-  // Backend is the source of truth for public URL shape.
   return {
-    publicUrl: (await supabase.storage.from(params.upload.bucket).getPublicUrl(params.upload.path)).data.publicUrl,
-    bucket: params.upload.bucket,
-    path: params.upload.path
+    publicUrl: params.signed.publicUrl,
+    bucket: params.signed.upload.bucket,
+    path: params.signed.upload.path
   };
 }
 

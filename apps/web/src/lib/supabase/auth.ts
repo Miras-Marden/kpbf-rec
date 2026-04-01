@@ -80,7 +80,9 @@ export async function bootstrapAuthSession(opts?: { force?: boolean }) {
   try {
     return await bootstrapPromise;
   } finally {
-    // Allow a future forced re-bootstrap (e.g. after sign-in) while preventing initial-load duplication.
+    // Reset so a later non-forced call can run a fresh bootstrap.
+    // (We still keep single-flight behavior while bootstrap is in-progress.)
+    bootstrapPromise = null;
     auth.setBootstrapStatus("ready");
   }
 }

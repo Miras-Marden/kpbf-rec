@@ -62,7 +62,7 @@ export function RequireRole({
   allow: string[];
   children: React.ReactNode;
 }) {
-  const user = auth.getState().user;
+  const user = useAuth().user;
   const ok = !!user && user.roles.some((r) => allow.includes(r));
   if (!ok) {
     return (
